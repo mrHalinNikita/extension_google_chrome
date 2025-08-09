@@ -8,10 +8,12 @@ function updateUI(isTracking) {
     startBtn.disabled = true;
     stopBtn.disabled = false;
     statusEl.textContent = "Запись: активна";
+    statusEl.classList.add("active");
   } else {
     startBtn.disabled = false;
     stopBtn.disabled = true;
     statusEl.textContent = "Запись: остановлена";
+    statusEl.classList.remove("active");
   }
 }
 
@@ -66,5 +68,5 @@ document.addEventListener('DOMContentLoaded', () => {
   stopBtn.addEventListener('click', () => {
     sendMessage('stop-tracking');
   });
-  
+
 });
