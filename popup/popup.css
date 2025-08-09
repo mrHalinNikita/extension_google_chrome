@@ -202,7 +202,8 @@ h1 {
   width: 100%;
 }
 
-/* Скроллбар */
+/* СКРОЛЛБАР */
+
 .sessions-list::-webkit-scrollbar {
   width: 6px;
 }
@@ -219,4 +220,31 @@ h1 {
 
 .sessions-list::-webkit-scrollbar-thumb:hover {
   background: #aaa;
+}
+
+/* КНОПКА ОЧИСТКИ */
+
+.clear-section {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.btn.small {
+  font-size: 12px;
+  padding: 6px 10px;
+  min-height: 28px;
+}
+
+#clearSessions {
+  color: #d32f2f;
+  border-color: #d32f2f;
+  background: transparent;
+}
+
+#clearSessions:hover:not(:disabled) {
+  background: #ffebee;
+  color: #c62828;
+  border-color: #c62828;
 }
