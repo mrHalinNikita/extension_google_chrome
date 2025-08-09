@@ -62,11 +62,24 @@ document.addEventListener('DOMContentLoaded', () => {
   loadState();
 
   startBtn.addEventListener('click', () => {
-    sendMessage('start-tracking');
+    startBtn.disabled = true;
+
+    sendMessage('start-tracking', () => {
+      stopBtn.disabled = false;
+      updateUI(true);
+    });
+
   });
 
   stopBtn.addEventListener('click', () => {
-    sendMessage('stop-tracking');
+    
+    stopBtn.disabled = true;
+
+    sendMessage('stop-tracking', () => {
+      startBtn.disabled = false;
+      updateUI(false);
+    });
+
   });
 
 });
