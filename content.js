@@ -12,13 +12,13 @@ function generateUserId() {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'start-tracking') {
         if (!isTracking) {
-        startTracking();
-        sendResponse({ status: 'tracking started' });
+            startTracking();
+            sendResponse({ status: 'tracking started' });
         }
     } else if (request.action === 'stop-tracking') {
         if (isTracking) {
-        stopTracking();
-        saveSessionToFile();
+            stopTracking();
+            saveSessionToFile();
         }
         sendResponse({ status: 'tracking stopped' });
      }
