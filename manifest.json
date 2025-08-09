@@ -1,6 +1,6 @@
 {
     "name": "HELLO EXTENSION",
-    "descriprion": "IT'S A BASE",
+    "description": "IT'S A BASE",
     "version": "0.0",
     "manifest_version": 3,
     "action": {
