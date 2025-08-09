@@ -148,9 +148,20 @@ document.addEventListener('DOMContentLoaded', () => {
     stopBtn = document.getElementById('stopBtn');
     statusEl = document.getElementById('status');
     sessionsList = document.getElementById('sessionsList');
-
+    clearBtn = document.getElementById('clearSessions');
+    
     loadTrackingState();
     loadSessions();
+
+    clearBtn.addEventListener('click', () => {
+        const confirmed = confirm('Вы уверены, что хотите удалить все сессии? Это действие нельзя отменить.');
+        if (confirmed) {
+            chrome.storage.local.set({ sessions: [] }, () => {
+                renderSessions([]);
+                console.log('История сессий очищена');
+            });
+        }
+    });
 
     startBtn.addEventListener('click', () => {
         sendMessage('start-tracking');
