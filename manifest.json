@@ -17,5 +17,8 @@
             "matches": ["<all_urls>"],
             "js": ["content.js"]
         }
+    ],
+    "host_permissions": [
+        "<all_urls>"
     ]
 }
