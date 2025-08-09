@@ -5,7 +5,7 @@ let sessionData = [];
 let userId = null;
 
 function generateUserId() {
-    return 'user_' + Math.random().toString(36).substr(2, 9);
+    return 'user_' + Math.random().toString(36).slice(2, 9);
 }
 
 // Обработчик сообщений из popup
