@@ -1,7 +1,14 @@
 let isTracking = false;
+let sessionStart = null;
+let sessionEnd = null;
 let sessionData = [];
+let userId = null;
 
-// Обработчик сообщений от popup
+function generateUserId() {
+  return 'user_' + Math.random().toString(36).substr(2, 9);
+}
+
+// Обработчик сообщений из popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'start-tracking') {
     if (!isTracking) {
@@ -18,57 +25,139 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true;
 });
 
+// Начало записи
 function startTracking() {
   isTracking = true;
+  userId = userId || generateUserId();
+  sessionStart = new Date().toISOString();
   sessionData = [];
-  logEvent('session_start', {});
-  
-  // Слушаем события
-  document.addEventListener('click', handleEvent);
-  document.addEventListener('input', handleEvent);
-  document.addEventListener('mousemove', throttle(handleMouseMove, 100));
+
+  logAction('session_started', {
+    message: 'Сессия началась',
+    url: window.location.href
+  });
+
+  // Подписываемся на события
+  document.addEventListener('click', handleClick);
+  document.addEventListener('submit', handleSubmit);
+  document.addEventListener('input', handleInput);
+
+  // Отслеживаем смену URL
+  const originalPushState = history.pushState;
+  history.pushState = function (...args) {
+    originalPushState.apply(this, args);
+    setTimeout(() => {
+      logAction('navigation', {
+        from: document.referrer || 'unknown',
+        to: window.location.href,
+        type: 'pushState'
+      });
+    }, 0);
+  };
+
+  window.addEventListener('popstate', () => {
+    logAction('navigation', {
+      from: document.referrer || 'unknown',
+      to: window.location.href,
+      type: 'popstate'
+    });
+  });
 }
 
+// Остановка записи
 function stopTracking() {
+  if (!isTracking) return;
   isTracking = false;
-  logEvent('session_stop', {});
-  
+  sessionEnd = new Date().toISOString();
+
+  logAction('session_stopped', {
+    message: 'Сессия завершена',
+    url: window.location.href
+  });
+
   // Удаляем слушатели
-  document.removeEventListener('click', handleEvent);
-  document.removeEventListener('input', handleEvent);
-  document.removeEventListener('mousemove', handleMouseMove);
+  document.removeEventListener('click', handleClick);
+  document.removeEventListener('submit', handleSubmit);
+  document.removeEventListener('input', handleInput);
 }
 
-function handleEvent(e) {
-  logEvent(e.type, {
-    target: e.target.tagName,
-    value: e.target.value || e.target.textContent,
-    id: e.target.id,
-    className: e.target.className,
-    xpath: getXPath(e.target),
-    timestamp: Date.now()
-  });
-}
-
-function handleMouseMove(e) {
-  logEvent('mousemove', {
-    x: e.clientX,
-    y: e.clientY,
-    timestamp: Date.now()
-  });
-}
-
-function logEvent(type, data) {
+// Логирование действий
+function logAction(type, data) {
   sessionData.push({
     type,
-    data
+    timestamp: new Date().toISOString(),
+    url: window.location.href,
+    ...data
   });
 }
 
-// Утилита: получение XPath элемента
+// Обработчики событий
+
+// Клик
+function handleClick(e) {
+  const target = e.target;
+  const tagName = target.tagName;
+  const role = target.getAttribute('role');
+  const ariaLabel = target.getAttribute('aria-label');
+  const text = target.textContent.trim().substring(0, 100);
+  const href = target.closest('a')?.href || null;
+
+  let actionType = 'click';
+  let details = {
+    target: tagName,
+    id: target.id,
+    className: target.className,
+    text,
+    xpath: getXPath(target)
+  };
+
+  // Если это ссылка — это переход
+  if (href) {
+    actionType = 'navigation_click';
+    details = {
+      ...details,
+      href,
+      linkText: text,
+      target: target.tagName
+    };
+  }
+
+  // Если это кнопка
+  if (tagName === 'BUTTON' || role === 'button') {
+    actionType = 'button_click';
+  }
+
+  logAction(actionType, details);
+}
+
+// Отправка формы
+function handleSubmit(e) {
+  logAction('form_submit', {
+    formId: e.target.id,
+    formName: e.target.name,
+    action: e.target.action,
+    method: e.target.method,
+    xpath: getXPath(e.target)
+  });
+}
+
+// Ввод текста
+function handleInput(e) {
+  const target = e.target;
+  logAction('input_type', {
+    target: target.tagName,
+    name: target.name,
+    id: target.id,
+    value: target.value.substring(0, 200),
+    xpath: getXPath(target)
+  });
+}
+
+// Получение XPath элемента
 function getXPath(element) {
   if (element.id) return `//*[@id="${element.id}"]`;
   if (element === document.body) return '/html/body';
+
   let ix = 0;
   const siblings = element.parentNode.childNodes;
   for (let i = 0; i < siblings.length; i++) {
@@ -80,32 +169,27 @@ function getXPath(element) {
       ix++;
     }
   }
+  return '';
 }
 
-// Функция для ограничения частоты вызова (throttle)
-function throttle(func, limit) {
-  let inThrottle;
-  return function () {
-    const args = arguments;
-    const context = this;
-    if (!inThrottle) {
-      func.apply(context, args);
-      inThrottle = true;
-      setTimeout(() => inThrottle = false, limit);
-    }
-  }
-}
-
-// Пока сохраняем в консоль. Позже — в файл.
+// Сохранение сессии в JSON 
 function saveSessionToFile() {
-  const blob = new Blob([JSON.stringify(sessionData, null, 2)], { type: 'application/json' });
+  const session = {
+    user_id: userId,
+    session_start: sessionStart,
+    session_end: sessionEnd,
+    actions: sessionData
+  };
+
+  const blob = new Blob([JSON.stringify(session, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `session_${Date.now()}.json`;
+  a.download = `session_${userId}_${Date.now()}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  console.log("Сессия сохранена:", sessionData);
+
+  console.log('Сессия сохранена:', session);
 }
