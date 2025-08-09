@@ -7,7 +7,7 @@ function updateUI(isTracking) {
   if (isTracking) {
     startBtn.disabled = true;
     stopBtn.disabled = false;
-    statusEL.textContent = "Запись: активна";
+    statusEl.textContent = "Запись: активна";
   } else {
     startBtn.disabled = false;
     stopBtn.disabled = true;
