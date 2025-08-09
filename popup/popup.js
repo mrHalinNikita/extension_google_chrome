@@ -1,16 +1,16 @@
-const startBtn = document.getElementById('startBtn');
-const stopBtn = document.getElementById('stopBtn');
-const statusEl = document.getElementById('status');
+let startBtn, stopBtn, statusEl;
 
 // Функция для обновления UI на основе состояния
 function updateUI(isTracking) {
+  if (!statusEl) return;
+
   if (isTracking) {
-    startBtn.disabled = true;
-    stopBtn.disabled = false;
+    if (startBtn) startBtn.disabled = true;
+    if (stopBtn) stopBtn.disabled = false;
     statusEl.textContent = "Запись: активна";
   } else {
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
+    if (startBtn) startBtn.disabled = false;
+    if (stopBtn) stopBtn.disabled = true;
     statusEl.textContent = "Запись: остановлена";
   }
 }
@@ -35,15 +35,20 @@ function sendMessage(action) {
   });
 }
 
-// Обработчики кнопок
-startBtn.addEventListener('click', () => {
-  sendMessage('start-tracking');
-  updateUI(true);
-});
+document.addEventListener('DOMContentLoaded', () => {
+  startBtn = document.getElementById('startBtn');
+  stopBtn = document.getElementById('stopBtn');
+  statusEl = document.getElementById('status');
 
-stopBtn.addEventListener('click', () => {
-  sendMessage('stop-tracking');
-  updateUI(false);
-});
+  startBtn.addEventListener('click', () => {
+    sendMessage('start-tracking');
+    updateUI(true);
+  });
 
-document.addEventListener('DOMContentLoaded', loadState);
+  stopBtn.addEventListener('click', () => {
+    sendMessage('stop-tracking');
+    updateUI(false);
+  });
+
+  loadState();
+});
