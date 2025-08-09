@@ -1,34 +1,49 @@
-// Получаем элементы
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const status = document.getElementById('status');
 
-// Отправляем сообщение в content script
+// Функция для обновления UI на основе состояния
+function updateUI(isTracking) {
+  if (isTracking) {
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    status.textContent = "Запись: активна";
+  } else {
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    status.textContent = "Запись: остановлена";
+  }
+}
+
+function loadState() {
+  chrome.storage.local.get(['isTracking'], (result) => {
+    const isTracking = result.isTracking || false;
+    updateUI(isTracking);
+  });
+}
+
 function sendMessage(action) {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     chrome.tabs.sendMessage(tabs[0].id, { action }, (response) => {
       if (chrome.runtime.lastError) {
-        console.error("Ошибка отправки сообщения:", chrome.runtime.lastError.message);
-        status.textContent = "Ошибка: страница не поддерживается";
+        console.error("Ошибка:", chrome.runtime.lastError.message);
+        status.textContent = "Ошибка: не удалось отправить команду";
       } else {
-        console.log("Сообщение отправлено:", response);
+        console.log("Команда отправлена:", action);
       }
     });
   });
 }
 
-// Кнопка "Начать"
+// Обработчики кнопок
 startBtn.addEventListener('click', () => {
   sendMessage('start-tracking');
-  startBtn.disabled = true;
-  stopBtn.disabled = false;
-  status.textContent = "Запись: активна";
+  updateUI(true);
 });
 
-// Кнопка "Остановить"
 stopBtn.addEventListener('click', () => {
   sendMessage('stop-tracking');
-  stopBtn.disabled = true;
-  startBtn.disabled = false;
-  status.textContent = "Запись: остановлена";
+  updateUI(false);
 });
+
+document.addEventListener('DOMContentLoaded', loadState);
