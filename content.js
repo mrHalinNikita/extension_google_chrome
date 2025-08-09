@@ -116,7 +116,13 @@ function stopTracking() {
         sessionEnd,
         lastSession: session
     }, () => {
-        saveSessionToFile(session);
+        chrome.storage.local.get(['sessions'], (result) => {
+            const sessions = result.sessions || [];
+            sessions.push(session);
+            chrome.storage.local.set({ sessions }, () => {
+                console.log("Можете скачать сессию");
+            });
+        });
     });
 
     // Удаляем слушатели
