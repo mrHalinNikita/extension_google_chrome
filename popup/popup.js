@@ -5,12 +5,12 @@ function updateUI(isTracking) {
   if (!statusEl) return;
 
   if (isTracking) {
-    if (startBtn) startBtn.disabled = true;
-    if (stopBtn) stopBtn.disabled = false;
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
     statusEl.textContent = "Запись: активна";
   } else {
-    if (startBtn) startBtn.disabled = false;
-    if (stopBtn) stopBtn.disabled = true;
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
     statusEl.textContent = "Запись: остановлена";
   }
 }
@@ -24,12 +24,29 @@ function loadState() {
 
 function sendMessage(action) {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    chrome.tabs.sendMessage(tabs[0].id, { action }, (response) => {
+    const tab = tabs[0];
+
+    if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+      if (statusEl) {
+        statusEl.textContent = "Ошибка: Нельзя на этой странице";
+      }
+      return;
+    }
+
+    chrome.tabs.sendMessage(tab.id, { action }, (response) => {
       if (chrome.runtime.lastError) {
-        console.error("Ошибка:", chrome.runtime.lastError.message);
-        statusEl.textContent = "Ошибка: не удалось отправить команду";
+        console.error("Ошибка отправки:", chrome.runtime.lastError.message);
+        if (statusEl) {
+          statusEl.textContent = "Ошибка: не удалось отправить";
+        }
       } else {
         console.log("Команда отправлена:", action);
+        // После отправки — обновляем состояние
+        if (action === 'start-tracking') {
+          updateUI(true);
+        } else if (action === 'stop-tracking') {
+          updateUI(false);
+        }
       }
     });
   });
@@ -40,15 +57,14 @@ document.addEventListener('DOMContentLoaded', () => {
   stopBtn = document.getElementById('stopBtn');
   statusEl = document.getElementById('status');
 
+  loadState();
+
   startBtn.addEventListener('click', () => {
     sendMessage('start-tracking');
-    updateUI(true);
   });
 
   stopBtn.addEventListener('click', () => {
     sendMessage('stop-tracking');
-    updateUI(false);
   });
-
-  loadState();
+  
 });
