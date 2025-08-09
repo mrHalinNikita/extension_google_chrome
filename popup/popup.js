@@ -1,17 +1,17 @@
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
-const status = document.getElementById('status');
+const statusEl = document.getElementById('status');
 
 // Функция для обновления UI на основе состояния
 function updateUI(isTracking) {
   if (isTracking) {
     startBtn.disabled = true;
     stopBtn.disabled = false;
-    status.textContent = "Запись: активна";
+    statusEL.textContent = "Запись: активна";
   } else {
     startBtn.disabled = false;
     stopBtn.disabled = true;
-    status.textContent = "Запись: остановлена";
+    statusEl.textContent = "Запись: остановлена";
   }
 }
 
@@ -27,7 +27,7 @@ function sendMessage(action) {
     chrome.tabs.sendMessage(tabs[0].id, { action }, (response) => {
       if (chrome.runtime.lastError) {
         console.error("Ошибка:", chrome.runtime.lastError.message);
-        status.textContent = "Ошибка: не удалось отправить команду";
+        statusEl.textContent = "Ошибка: не удалось отправить команду";
       } else {
         console.log("Команда отправлена:", action);
       }
