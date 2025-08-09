@@ -4,28 +4,52 @@ let sessionEnd = null;
 let sessionData = [];
 let userId = null;
 
+// Генерация ID пользователя
 function generateUserId() {
     return 'user_' + Math.random().toString(36).slice(2, 9);
 }
 
-// Обработчик сообщений из popup
+// Восстановление состояния при загрузке
+async function restoreState() {
+    const result = await chrome.storage.local.get([
+        'isTracking',
+        'userId',
+        'sessionStart',
+        'sessionData'
+    ]);
+
+    if (result.isTracking && result.userId) {
+        isTracking = true;
+        userId = result.userId;
+        sessionStart = result.sessionStart;
+        sessionData = result.sessionData || [];
+
+        // Восстанавливаем события
+        startEventListeners();
+        logAction('session_restored', {
+            message: 'Сессия восстановлена после перезагрузки',
+            url: window.location.href
+        });
+    }
+}
+
+// Обработчик сообщений
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'start-tracking') {
         if (!isTracking) {
             startTracking();
-            sendResponse({ status: 'tracking started' });
         }
+        sendResponse({ status: 'tracking started', userId });
     } else if (request.action === 'stop-tracking') {
         if (isTracking) {
             stopTracking();
-            saveSessionToFile();
         }
         sendResponse({ status: 'tracking stopped' });
-     }
+    }
     return true;
 });
 
-// Начало записи
+// Начало трекинга
 function startTracking() {
     if (isTracking) return;
 
@@ -35,46 +59,39 @@ function startTracking() {
     sessionData = [];
 
     // Сохраняем состояние
-    chrome.storage.local.set({
-        isTracking: true,
-        userId,
-        sessionStart,
-        sessionData:[]
-    });
+    saveState();
 
     logAction('session_started', {
         message: 'Сессия началась',
         url: window.location.href
     });
 
-    // Подписываемся на события
+    startEventListeners();
+}
+
+// Подписка на события
+function startEventListeners() {
     document.addEventListener('click', handleClick);
     document.addEventListener('submit', handleSubmit);
     document.addEventListener('input', handleInput);
+    window.addEventListener('popstate', handlePopState);
 
-    // Отслеживаем смену URL
+    // Переопределение pushState
     const originalPushState = history.pushState;
     history.pushState = function (...args) {
         originalPushState.apply(this, args);
         setTimeout(() => {
-        logAction('navigation', {
-            from: document.referrer || 'unknown',
-            to: window.location.href,
-            type: 'pushState'
-        });
+            logAction('navigation', {
+                from: document.referrer || 'unknown',
+                to: window.location.href,
+                type: 'pushState'
+            });
+            saveState();
         }, 0);
     };
-
-    window.addEventListener('popstate', () => {
-        logAction('navigation', {
-        from: document.referrer || 'unknown',
-        to: window.location.href,
-        type: 'popstate'
-        });
-    });
 }
 
-// Остановка записи
+// Остановка трекинга
 function stopTracking() {
     if (!isTracking) return;
 
@@ -86,116 +103,7 @@ function stopTracking() {
         url: window.location.href
     });
 
-    chrome.storage.local.set({
-        isTracking: false,
-        sessionEnd,
-        lastSession: {
-        user_id: userId,
-        session_start: sessionStart,
-        session_end: sessionEnd,
-        actions: sessionData
-        }
-    });
-
-    // Удаляем слушатели
-    document.removeEventListener('click', handleClick);
-    document.removeEventListener('submit', handleSubmit);
-    document.removeEventListener('input', handleInput);
-}
-
-// Логирование действий
-function logAction(type, data) {
-    sessionData.push({
-        type,
-        timestamp: new Date().toISOString(),
-        url: window.location.href,
-        ...data
-    });
-}
-
-// Обработчики событий
-
-// Клик
-function handleClick(e) {
-    const target = e.target;
-    const tagName = target.tagName;
-    const role = target.getAttribute('role');
-    const ariaLabel = target.getAttribute('aria-label');
-    const text = target.textContent.trim().substring(0, 100);
-    const href = target.closest('a')?.href || null;
-
-    let actionType = 'click';
-    let details = {
-        target: tagName,
-        id: target.id,
-        className: target.className,
-        text,
-        xpath: getXPath(target)
-    };
-
-    // Если это ссылка — это переход
-    if (href) {
-        actionType = 'navigation_click';
-        details = {
-        ...details,
-        href,
-        linkText: text,
-        target: target.tagName
-        };
-    }
-
-    // Если это кнопка
-    if (tagName === 'BUTTON' || role === 'button') {
-        actionType = 'button_click';
-    }
-
-    logAction(actionType, details);
-}
-
-// Отправка формы
-function handleSubmit(e) {
-    logAction('form_submit', {
-        formId: e.target.id,
-        formName: e.target.name,
-        action: e.target.action,
-        method: e.target.method,
-        xpath: getXPath(e.target)
-    });
-}
-
-// Ввод текста
-function handleInput(e) {
-    const target = e.target;
-    logAction('input_type', {
-        target: target.tagName,
-        name: target.name,
-        id: target.id,
-        value: target.value.substring(0, 200),
-        xpath: getXPath(target)
-    });
-}
-
-// Получение XPath элемента
-function getXPath(element) {
-    if (element.id) return `//*[@id="${element.id}"]`;
-    if (element === document.body) return '/html/body';
-
-    let ix = 0;
-    const siblings = element.parentNode.childNodes;
-    for (let i = 0; i < siblings.length; i++) {
-        const sibling = siblings[i];
-        if (sibling === element) {
-        return `${getXPath(element.parentNode)}/${element.tagName}[${ix + 1}]`;
-        }
-        if (sibling.nodeType === 1 && sibling.tagName === element.tagName) {
-        ix++;
-        }
-    }
-    return '';
-}
-
-// Сохранение сессии в JSON 
-function saveSessionToFile() {
+    // Сохраняем итоговую сессию
     const session = {
         user_id: userId,
         session_start: sessionStart,
@@ -203,15 +111,148 @@ function saveSessionToFile() {
         actions: sessionData
     };
 
-    const blob = new Blob([JSON.stringify(session, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `session_${userId}_${Date.now()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    chrome.storage.local.set({
+        isTracking: false,
+        sessionEnd,
+        lastSession: session
+    }, () => {
+        saveSessionToFile(session);
+    });
 
-    console.log('Сессия сохранена:', session);
+    // Удаляем слушатели
+    document.removeEventListener('click', handleClick);
+    document.removeEventListener('submit', handleSubmit);
+    document.removeEventListener('input', handleInput);
+    window.removeEventListener('popstate', handlePopState);
 }
+
+// Логирование действий
+function logAction(type, data) {
+    const action = {
+        type,
+        timestamp: new Date().toISOString(),
+        url: window.location.href,
+        ...data
+    };
+    sessionData.push(action);
+    saveState();
+}
+
+// Сохранение состояния в хранилище
+function saveState() {
+    chrome.storage.local.set({
+        isTracking,
+        userId,
+        sessionStart,
+        sessionData
+    });
+}
+
+// Обработчики событий
+
+function handleClick(e) {
+    const target = e.target;
+    const tagName = target.tagName;
+    const role = target.getAttribute('role');
+    const ariaLabel = target.getAttribute('aria-label');
+    const text = (target.textContent || '').trim().substring(0, 100);
+    const href = target.closest('a')?.href || null;
+
+    let actionType = 'click';
+    let details = {
+        target: tagName,
+        id: target.id,
+        className: target.className.split(' ').filter(c => c).join(' '),
+        text,
+        ariaLabel,
+        xpath: getXPath(target)
+    };
+
+    if (href) {
+        actionType = 'navigation_click';
+        details.href = href;
+        details.linkText = text;
+    }
+
+    if (tagName === 'BUTTON' || role === 'button') {
+        actionType = 'button_click';
+    }
+
+    logAction(actionType, details);
+}
+
+function handleSubmit(e) {
+    logAction('form_submit', {
+        formId: e.target.id,
+        formName: e.target.name,
+        action: e.target.action,
+        method: e.target.method,
+        xpath: getXPath(e.target),
+        fieldCount: e.target.elements.length
+    });
+}
+
+function handleInput(e) {
+    const target = e.target;
+    logAction('input_type', {
+        target: target.tagName,
+        name: target.name,
+        id: target.id,
+        type: target.type,
+        value: (target.value || '').substring(0, 200),
+        xpath: getXPath(target)
+    });
+}
+
+function handlePopState() {
+    logAction('navigation', {
+        from: document.referrer || 'unknown',
+        to: window.location.href,
+        type: 'popstate'
+    });
+}
+
+// Получение XPath
+function getXPath(element) {
+    if (!element || element.nodeType !== Node.ELEMENT_NODE) return '';
+    if (element.id) return `//*[@id="${element.id}"]`;
+    if (element === document.body) return '/html/body';
+    if (element === document.documentElement) return '';
+
+    const parent = element.parentNode;
+    if (!parent) return '';
+
+    let index = 0;
+    for (let i = 0; i < parent.childNodes.length; i++) {
+        const sibling = parent.childNodes[i];
+        if (sibling === element) {
+            const parentPath = getXPath(parent);
+            return `${parentPath}/${element.tagName}[${index + 1}]`;
+        }
+        if (sibling.nodeType === 1 && sibling.tagName === element.tagName) {
+            index++;
+        }
+    }
+    return '';
+}
+
+// Сохранение сессии в файл
+function saveSessionToFile(session) {
+    try {
+        const blob = new Blob([JSON.stringify(session, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `session_${userId}_${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        console.log('Сессия сохранена в файл:', session);
+    } catch (err) {
+        console.error('Ошибка при сохранении файла:', err);
+    }
+}
+
+// Инициализация
+restoreState().catch(console.error);
