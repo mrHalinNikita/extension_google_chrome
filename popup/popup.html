@@ -8,12 +8,17 @@
 </head>
 <body>
   <div class="container">
-    <h2>Sessions Tracker</h2>
-    <p>Собираем ваши действия на сайте</p>
-    <button id="startBtn">Начать запись</button>
-    <button id="stopBtn" disabled>Остановить</button>
-    <div id="status"></div>
+    <h1>Sessions Tracker</h1>
+    <p class="subtitle">Собираем ваши действия на сайте</p>
+
+    <div class="controls">
+      <button id="startBtn" class="btn primary">Начать запись</button>
+      <button id="stopBtn" class="btn secondary" disabled>Остановить</button>
+    </div>
+
+    <div class="status" id="status">Запись: остановлена</div>
   </div>
+
   <script src="popup.js"></script>
 </body>
 </html>
