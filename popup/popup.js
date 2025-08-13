@@ -1,4 +1,4 @@
-let startBtn, stopBtn, statusEl, sessionsList;
+let startBtn, stopBtn, statusEl, sessionsList, clearBtn, downloadSelectedBtn, downloadAllBtn;
 
 // UI
 function updateUI(isTracking) {
@@ -56,9 +56,18 @@ function renderSessions(sessions) {
             const item = document.createElement('div');
             item.className = 'session-item';
 
+            const formattedDate = formatDate(session.session_start);
+            const filenameSafeDate = formatDateForFilename(session.session_start);
+
             item.innerHTML = `
+                <input 
+                    type="checkbox" 
+                    class="session-checkbox"
+                    data-session-id="${session.user_id}" 
+                    data-start="${session.session_start}"
+                >
                 <div class="session-info">
-                    <div><strong>${formatDate(session.session_start)}</strong></div>
+                    <div><strong>${formattedDate}</strong></div>
                     <div class="session-duration">${duration}</div>
                 </div>
                 <button class="download-btn" data-session-id="${session.user_id}" data-start="${session.session_start}">
@@ -69,6 +78,13 @@ function renderSessions(sessions) {
             sessionsList.appendChild(item);
         });
 
+    // Обработчики для чекбоксов
+    const checkboxes = sessionsList.querySelectorAll('.session-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateDownloadSelectedButton);
+    });
+
+    // Обработчики для отдельной кнопки "Скачать"
     document.querySelectorAll('.download-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const userId = btn.dataset.sessionId;
@@ -83,19 +99,21 @@ function renderSessions(sessions) {
             });
         });
     });
+
+    // Инициализация состояния кнопки
+    updateDownloadSelectedButton();
+}
+
+function updateDownloadSelectedButton() {
+    const checked = document.querySelectorAll('.session-checkbox:checked');
+    downloadSelectedBtn.disabled = checked.length === 0;
 }
 
 // Скачать сессию
 function downloadSession(session) {
     const blob = new Blob([JSON.stringify(session, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `session_${session.user_id}_${Date.now()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const filename = `session_${session.user_id}_${formatDateForFilename(session.session_start)}.json`;
+    downloadBlob(blob, filename);
 }
 
 function formatDate(isoString) {
@@ -142,6 +160,78 @@ function sendMessage(action) {
     });
 }
 
+async function downloadAllSessions() {
+    const result = await chrome.storage.local.get(['sessions']);
+    const sessions = result.sessions || [];
+
+    if (sessions.length === 0) {
+        alert('Нет сессий для скачивания');
+        return;
+    }
+
+    const zip = new JSZip();
+
+    sessions.forEach((session, index) => {
+        const filename = `session_${session.user_id}_${formatDateForFilename(session.session_start)}.json`;
+        zip.file(filename, JSON.stringify(session, null, 2));
+    });
+
+    try {
+        const blob = await zip.generateAsync({ type: 'blob' });
+        downloadBlob(blob, `sessions_archive_${Date.now()}.zip`);
+    } catch (err) {
+        console.error('Ошибка при создании архива:', err);
+        alert('Не удалось создать архив');
+    }
+}
+
+async function downloadSelectedSessions() {
+    const checkedBoxes = sessionsList.querySelectorAll('input[type="checkbox"]:checked');
+    if (checkedBoxes.length === 0) {
+        alert('Выберите хотя бы одну сессию');
+        return;
+    }
+
+    const zip = new JSZip();
+
+    for (const checkbox of checkedBoxes) {
+        const userId = checkbox.dataset.sessionId;
+        const start = checkbox.dataset.start;
+
+        const result = await chrome.storage.local.get(['sessions']);
+        const sessions = result.sessions || [];
+        const session = sessions.find(s => s.user_id === userId && s.session_start === start);
+
+        if (session) {
+            const filename = `session_${session.user_id}_${formatDateForFilename(session.session_start)}.json`;
+            zip.file(filename, JSON.stringify(session, null, 2));
+        }
+    }
+
+    try {
+        const blob = await zip.generateAsync({ type: 'blob' });
+        downloadBlob(blob, `selected_sessions_${Date.now()}.zip`);
+    } catch (err) {
+        console.error('Ошибка при создании архива:', err);
+        alert('Не удалось создать архив');
+    }
+}
+
+function formatDateForFilename(isoString) {
+    return new Date(isoString).toISOString().replace(/[:.]/g, '-').slice(0, -5);
+}
+
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
 // Инициализация
 document.addEventListener('DOMContentLoaded', () => {
     startBtn = document.getElementById('startBtn');
@@ -149,7 +239,9 @@ document.addEventListener('DOMContentLoaded', () => {
     statusEl = document.getElementById('status');
     sessionsList = document.getElementById('sessionsList');
     clearBtn = document.getElementById('clearSessions');
-    
+    downloadSelectedBtn = document.getElementById('downloadSelected');
+    downloadAllBtn = document.getElementById('downloadAll');
+
     loadTrackingState();
     loadSessions();
 
@@ -170,4 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
     stopBtn.addEventListener('click', () => {
         sendMessage('stop-tracking');
     });
+
+    downloadSelectedBtn.addEventListener('click', downloadSelectedSessions);
+    downloadAllBtn.addEventListener('click', downloadAllSessions);
 });
