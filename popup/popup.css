@@ -248,3 +248,56 @@ h1 {
   color: #c62828;
   border-color: #c62828;
 }
+
+/* ZIP */
+
+.actions-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #444;
+  word-break: break-all;
+}
+
+.session-item input[type="checkbox"] {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.session-info {
+  flex: 1;
+  text-align: left;
+}
+
+.session-duration {
+  font-size: 11px;
+  color: #777;
+  margin-top: 4px;
+}
+
+.download-btn {
+  background: #1a1a1a;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  font-size: 11px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.download-btn:hover {
+  background: #000;
+}
