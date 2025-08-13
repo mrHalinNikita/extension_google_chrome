@@ -246,13 +246,22 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSessions();
 
     clearBtn.addEventListener('click', () => {
-        const confirmed = confirm('Вы уверены, что хотите удалить все сессии? Это действие нельзя отменить.');
-        if (confirmed) {
-            chrome.storage.local.set({ sessions: [] }, () => {
-                renderSessions([]);
-                console.log('История сессий очищена');
-            });
-        }
+        chrome.storage.local.get(['sessions'], (result) => {
+            const sessions = result.sessions || [];
+
+            if (sessions.length === 0) {
+                alert('История уже очищена');
+                return;
+            }
+
+            const confirmed = confirm('Вы уверены, что хотите удалить все сессии? Это действие нельзя отменить.');
+            if (confirmed) {
+                chrome.storage.local.set({ sessions: [] }, () => {
+                    renderSessions([]);
+                    console.log('История сессий очищена');
+                });
+            }
+        });
     });
 
     startBtn.addEventListener('click', () => {
