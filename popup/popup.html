@@ -20,10 +20,18 @@
     
     <div class="sessions-section">
       <h2 class="section-title">Ваши сессии</h2>
-      <div id="sessionsList" class="sessions-list">
-  
-        <p class="empty-message">Сессии не найдены</p>
 
+      <div class="actions-bar">
+        <button id="downloadSelected" class="btn secondary small" disabled>
+          Скачать выбранные
+        </button>
+        <button id="downloadAll" class="btn primary small">
+          Скачать все (.zip)
+        </button>
+      </div>
+
+      <div id="sessionsList" class="sessions-list">
+        <p class="empty-message">Сессии не найдены</p>
       </div>
     </div>
 
@@ -32,6 +40,7 @@
     </div>
   </div>
 
+  <script src="../lib/jszip.min.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
